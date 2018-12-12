@@ -272,22 +272,22 @@ void GLCM::CalcuOneGLCM(Mat src, Mat& dst, int src_i, int src_j, int size, GrayL
     case DIR_0:
         for(int i = 0; i < srcCut.rows; i++)
             for(int j = 0; j < srcCut.cols - 1; j++)
-                glcm.at<uchar>(srcCut.at<uchar>(j, i), srcCut.at<uchar>(j+1, i))++; //我觉得这里i j颠倒顺序是有问题的！
+                glcm.at<uchar>(srcCut.at<uchar>(i, j), srcCut.at<uchar>(i, j+1))++; //我觉得这里i j颠倒顺序是有问题的！
         break;
     case DIR_45:
         for(int i = 0; i < srcCut.rows - 1; i++)
             for(int j = 0; j < srcCut.cols - 1; j++)
-                glcm.at<uchar>(srcCut.at<uchar>(j, i), srcCut.at<uchar>(j+1, i+1))++;
+                glcm.at<uchar>(srcCut.at<uchar>(i, j), srcCut.at<uchar>(i+1, j+1))++;
         break;
     case DIR_90:
         for(int i = 0; i < srcCut.rows - 1; i++)
             for(int j = 0; j < srcCut.cols; j++)
-                glcm.at<uchar>(srcCut.at<uchar>(j, i), srcCut.at<uchar>(j, i+1))++;
+                glcm.at<uchar>(srcCut.at<uchar>(i, j), srcCut.at<uchar>(i+1, j))++;
         break;
     case DIR_135:
         for(int i = 1; i < srcCut.rows; i++)
             for(int j = 0; j < srcCut.cols - 1; j++)
-                glcm.at<uchar>(srcCut.at<uchar>(j, i), srcCut.at<uchar>(j+1, i-1))++;
+                glcm.at<uchar>(srcCut.at<uchar>(i, j), srcCut.at<uchar>(i-1, j+1))++;
         break;
     default:
         cout<<"ERROR in CalcuOneGLCM(): No such Direct."<<endl;
@@ -331,12 +331,12 @@ void GLCM::NormalizeMat(Mat src, Mat& dst)
     float sum = 0;
     for(int i = 0; i < tmp.rows; i++)
         for(int j = 0; j < tmp.cols; j++)
-            sum += tmp.at<float>(j, i);
+            sum += tmp.at<float>(i, j);
     if(sum == 0)    sum = 1;
 
     for(int i = 0; i < tmp.rows; i++)
         for(int j = 0; j < tmp.cols; j++)
-            tmp.at<float>(j, i) /= sum;
+            tmp.at<float>(i, j) /= sum;
 
     tmp.copyTo(dst);
 }
@@ -372,7 +372,7 @@ void GLCM::CalcuOneTextureEValue(Mat src, TextureEValues& EValue, bool ToCheckMa
         float sum = 0;
         for(int i = 0; i < src.rows; i++)
             for(int j = 0; j < src.cols; j++)
-                sum += src.at<float>(j, i);
+                sum += src.at<float>(i, j);
         if(sum < 0.99 || sum > 1.01)
         {
             cout<<"ERROR in CalcuOneTextureEValue(): Sum of the Mat is not equal to 1.00."<<endl;
@@ -388,11 +388,11 @@ void GLCM::CalcuOneTextureEValue(Mat src, TextureEValues& EValue, bool ToCheckMa
     for(int i = 0; i < src.rows; i++)
         for(int j = 0; j < src.cols; j++)
         {
-            EValue.energy += powf(src.at<float>(j, i), 2);
-            EValue.contrast += (powf((i - j), 2) * src.at<float>(j, i) );
-            EValue.homogenity += (src.at<float>(j, i) / (1 + fabs((float)(i - j))) );
-            if(src.at<float>(j, i) != 0)
-                EValue.entropy -= (src.at<float>(j, i) * log10(src.at<float>(j, i)) );
+            EValue.energy += powf(src.at<float>(i, j), 2);
+            EValue.contrast += (powf((i - j), 2) * src.at<float>(i, j) );
+            EValue.homogenity += (src.at<float>(i, j) / (1 + fabs((float)(i - j))) );
+            if(src.at<float>(i, j) != 0)
+                EValue.entropy -= (src.at<float>(i, j) * log10(src.at<float>(i, j)) );
         }
 }
 

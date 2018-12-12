@@ -104,11 +104,16 @@ void testGLCM(Mat imgMat)
     cout<<"    Energy: "<<EValues.energy<<endl;
     cout<<"    EntropyData: "<<EValues.entropy<<endl;
     cout<<"    Homogenity: "<<EValues.homogenity<<endl;
-
+#if 1
     imshow("Energy", imgEnergy);
     imshow("Contrast", imgContrast);
     imshow("Homogenity", imgHomogenity);
     imshow("Entropy", imgEntropy);
-
+#else
+    imwrite("Energy1.jpg", imgEnergy);
+    imwrite("Contrast1.jpg", imgContrast);
+    imwrite("Homogenity1.jpg", imgHomogenity);
+    imwrite("Entropy1.jpg", imgEntropy);
     cvWaitKey(0);
+#endif
 }
