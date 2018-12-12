@@ -12,10 +12,12 @@ INCLUDEPATH+=$$PWD/library/win32/opencv/include
              $$PWD/library/win32/opencv/include/opencv2
 
 SOURCES +=  main.cpp \
-    SLIC.cpp
+    SLIC.cpp \
+    glcm.cpp
 
 HEADERS += \
-    SLIC.h
+    SLIC.h \
+    glcm.h
 
 LIBS+=-L $$PWD/library/win32/opencv/lib/libopencv_*.a
          #$$PWD/library/win32/opencv/bin/libopencv_*.dll
