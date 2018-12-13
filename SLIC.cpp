@@ -138,6 +138,8 @@ void SLIC::DoRGBtoLABConversion(
 
     for( int j = 0; j < sz; j++ )
     {
+        unsigned int temp = ubuff[j];
+
         int r = (ubuff[j] >> 16) & 0xFF;
         int g = (ubuff[j] >>  8) & 0xFF;
         int b = (ubuff[j]      ) & 0xFF;

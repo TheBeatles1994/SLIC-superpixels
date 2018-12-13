@@ -3,6 +3,7 @@
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
+ #include <iomanip> //用于16进制输出
 #include "SLIC.h"
 #include "glcm.h"
 
@@ -11,14 +12,17 @@ using namespace std;
 
 void testSLIC(Mat imgMat);
 void testGLCM(Mat imgMat);
+void testEndian();
+void testBitOper();
 
 int main(int argc, char *argv[])
 {
 
-    Mat imgMat = imread("imgs/FB043_293.jpg");
+    Mat imgMat = imread("imgs/dog.jpg");
 
-    //testSLIC(imgMat);
-    testGLCM(imgMat);
+    testSLIC(imgMat);
+    //testGLCM(imgMat);
+    //testBitOper();
 
     return 0;
 }
@@ -47,10 +51,10 @@ void testSLIC(Mat imgMat)
                 srcImage.at<uchar>(Point(j, i)) //表示的是 坐标（j,i）的像素
             */
             img[row*imgMat.cols + col] = 0;
-            img[row*imgMat.cols + col] |= ( (uchar)255                                 );
-            img[row*imgMat.cols + col] |= ( (uchar)imgMat.at<Vec3b>(row, col)[2] <<  8 );   //Red
-            img[row*imgMat.cols + col] |= ( (uchar)imgMat.at<Vec3b>(row, col)[1] << 16 );   //Green
-            img[row*imgMat.cols + col] |= ( (uchar)imgMat.at<Vec3b>(row, col)[0] << 24 );   //Blue
+            img[row*imgMat.cols + col] |= ( (uchar)255                           << 24 );
+            img[row*imgMat.cols + col] |= ( (uchar)imgMat.at<Vec3b>(row, col)[2] << 16 );   //Red
+            img[row*imgMat.cols + col] |= ( (uchar)imgMat.at<Vec3b>(row, col)[1] <<  8 );   //Green
+            img[row*imgMat.cols + col] |= ( (uchar)imgMat.at<Vec3b>(row, col)[0]       );   //Blue
         }
     }
 
@@ -67,9 +71,9 @@ void testSLIC(Mat imgMat)
         for (int col = 0; col < slicMat.cols; col++)
         {
             unsigned int x = img[row*slicMat.cols + col];
-            slicMat.at<Vec3b>(row, col)[2] = ((char *)&x)[1];   //Red
-            slicMat.at<Vec3b>(row, col)[1] = ((char *)&x)[2];   //Green
-            slicMat.at<Vec3b>(row, col)[0] = ((char *)&x)[3];   //Blue
+            slicMat.at<Vec3b>(row, col)[2] = ((char *)&x)[2];   //Red
+            slicMat.at<Vec3b>(row, col)[1] = ((char *)&x)[1];   //Green
+            slicMat.at<Vec3b>(row, col)[0] = ((char *)&x)[0];   //Blue
         }
     }
 
@@ -104,7 +108,7 @@ void testGLCM(Mat imgMat)
     cout<<"    Energy: "<<EValues.energy<<endl;
     cout<<"    EntropyData: "<<EValues.entropy<<endl;
     cout<<"    Homogenity: "<<EValues.homogenity<<endl;
-#if 0
+#if 1
     imshow("Energy", imgEnergy);
     imshow("Contrast", imgContrast);
     imshow("Homogenity", imgHomogenity);
@@ -116,4 +120,37 @@ void testGLCM(Mat imgMat)
     imwrite("Entropy1.jpg", imgEntropy);
     cvWaitKey(0);
 #endif
+}
+
+void testEndian()
+{
+    union Test
+    {
+        int a;
+        char b;
+    };
+
+    //本机器测试结果（教研室电脑）是小端模式
+    Test t;
+    t.a = 1;
+    if (t.b == 1)
+        cout << "Little Endian" << endl;
+    else
+        cout << "Big Endian" << endl;
+}
+
+void testBitOper()
+{
+    int i = 0;
+    unsigned char x = 3, y = 11;
+    unsigned char a,b;
+
+    i |= x;
+    i |= y<<8;
+
+    cout << hex <<i <<endl;
+
+    a = i;
+    b = i/256;
+    cout <<(int)a<<" "<<(int)b<<endl;
 }
