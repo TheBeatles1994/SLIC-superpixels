@@ -18,7 +18,8 @@ void testBitOper();
 int main(int argc, char *argv[])
 {
 
-    Mat imgMat = imread("imgs/dog.jpg");
+    Mat imgMat = imread("imgs/FB043_293.jpg");
+    //Mat imgMat = imread("imgs/dog.jpg");
 
     testSLIC(imgMat);
     //testGLCM(imgMat);
@@ -39,13 +40,14 @@ void testSLIC(Mat imgMat)
     int* labels = new int[imgMat.rows * imgMat.cols];
     int numlabels(0);
     SLIC slic;
-    slic.DoSuperpixelSegmentation_ForGivenNumberOfSuperpixels(imgMat, labels, numlabels, 400, 40);
+    slic.DoSuperpixelSegmentation_ForGivenNumberOfSuperpixels(imgMat, labels, numlabels, 30, 10);
     slic.DrawContoursAroundSegments(imgMat, labels, imgMat.cols, imgMat.rows, 0);
     if(labels) delete [] labels;
 
-    imshow("SLIC", imgMat);
-    cvWaitKey();
-//    imwrite("slic.jpg", slicMat);
+//    imshow("SLIC", imgMat);
+//    cvWaitKey();
+    imwrite("slic.jpg", imgMat);
+    cout<<"Finished!"<<endl;
 }
 
 void testGLCM(Mat imgMat)

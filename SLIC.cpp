@@ -232,30 +232,32 @@ void SLIC::DrawContoursAroundSegments(
 
 
     int sz = width*height;
-    vector<bool> istaken(sz, false);
-    vector<int> contourx(sz);vector<int> contoury(sz);
+    vector<bool> istaken(sz, false);    //记录该点是否已标记为边缘点
+    vector<int> contourx(sz);   //记录x坐标
+    vector<int> contoury(sz);   //记录y坐标
     int mainindex(0);int cind(0);
     for( int j = 0; j < height; j++ )
     {
         for( int k = 0; k < width; k++ )
         {
             int np(0);
+            //八邻域
             for( int i = 0; i < 8; i++ )
             {
                 int x = k + dx8[i];
                 int y = j + dy8[i];
-
+                //判断位置是否有效
                 if( (x >= 0 && x < width) && (y >= 0 && y < height) )
                 {
                     int index = y*width + x;
 
                     //if( false == istaken[index] )//comment this to obtain internal contours
                     {
-                        if( labels[mainindex] != labels[index] ) np++;
+                        if( labels[mainindex] != labels[index] ) np++;  //若邻域像素的label与本像素的label不同，则np++
                     }
                 }
             }
-            if( np > 1 )
+            if( np > 1 )    //若邻域像素的label与本像素的label不同数量超过了1，则记录进contour数组，同时对应的istaken的本像素设置为true
             {
                 contourx[cind] = k;
                 contoury[cind] = j;
@@ -267,6 +269,7 @@ void SLIC::DrawContoursAroundSegments(
         }
     }
 
+    //边缘像素个数
     int numboundpix = cind;//int(contourx.size());
     for( int j = 0; j < numboundpix; j++ )
     {
@@ -274,10 +277,12 @@ void SLIC::DrawContoursAroundSegments(
         imgMat.at<Vec3b>(contoury[j], contourx[j])[1] = 255;   //Green
         imgMat.at<Vec3b>(contoury[j], contourx[j])[0] = 255;   //Blue
 
+        //在白色边缘像素的邻域加上黑色框
         for( int n = 0; n < 8; n++ )
         {
             int x = contourx[j] + dx8[n];
             int y = contoury[j] + dy8[n];
+            //判断位置是否有效
             if( (x >= 0 && x < width) && (y >= 0 && y < height) )
             {
                 int ind = y*width + x;
@@ -650,148 +655,6 @@ void SLIC::PerformSuperpixelSLIC(
 }
 
 //===========================================================================
-///	PerformSupervoxelSLIC
-///
-///	Performs k mean segmentation. It is fast because it searches locally, not
-/// over the entire image.
-//===========================================================================
-void SLIC::PerformSupervoxelSLIC(
-        vector<double>&				kseedsl,
-        vector<double>&				kseedsa,
-        vector<double>&				kseedsb,
-        vector<double>&				kseedsx,
-        vector<double>&				kseedsy,
-        vector<double>&				kseedsz,
-        int**&					klabels,
-        const int&				STEP,
-        const double&				compactness)
-{
-    int sz = m_width*m_height;
-    const int numk = kseedsl.size();
-    //int numitr(0);
-
-    //----------------
-    int offset = STEP;
-    //if(STEP < 8) offset = STEP*1.5;//to prevent a crash due to a very small step size
-    //----------------
-
-    vector<double> clustersize(numk, 0);
-    vector<double> inv(numk, 0);//to store 1/clustersize[k] values
-
-    vector<double> sigmal(numk, 0);
-    vector<double> sigmaa(numk, 0);
-    vector<double> sigmab(numk, 0);
-    vector<double> sigmax(numk, 0);
-    vector<double> sigmay(numk, 0);
-    vector<double> sigmaz(numk, 0);
-
-    vector< double > initdouble(sz, DBL_MAX);
-    vector< vector<double> > distvec(m_depth, initdouble);
-    //vector<double> distvec(sz, DBL_MAX);
-
-    double invwt = 1.0/((STEP/compactness)*(STEP/compactness));//compactness = 20.0 is usually good.
-
-    int x1, y1, x2, y2, z1, z2;
-    double l, a, b;
-    double dist;
-    double distxyz;
-    for( int itr = 0; itr < 5; itr++ )
-    {
-        distvec.assign(m_depth, initdouble);
-        for( int n = 0; n < numk; n++ )
-        {
-            y1 = max(0.0,			kseedsy[n]-offset);
-            y2 = min((double)m_height,	kseedsy[n]+offset);
-            x1 = max(0.0,			kseedsx[n]-offset);
-            x2 = min((double)m_width,	kseedsx[n]+offset);
-            z1 = max(0.0,			kseedsz[n]-offset);
-            z2 = min((double)m_depth,	kseedsz[n]+offset);
-
-
-            for( int z = z1; z < z2; z++ )
-            {
-                for( int y = y1; y < y2; y++ )
-                {
-                    for( int x = x1; x < x2; x++ )
-                    {
-                        int i = y*m_width + x;
-
-                        l = m_lvecvec[z][i];
-                        a = m_avecvec[z][i];
-                        b = m_bvecvec[z][i];
-
-                        dist =			(l - kseedsl[n])*(l - kseedsl[n]) +
-                                (a - kseedsa[n])*(a - kseedsa[n]) +
-                                (b - kseedsb[n])*(b - kseedsb[n]);
-
-                        distxyz =		(x - kseedsx[n])*(x - kseedsx[n]) +
-                                (y - kseedsy[n])*(y - kseedsy[n]) +
-                                (z - kseedsz[n])*(z - kseedsz[n]);
-                        //------------------------------------------------------------------------
-                        dist += distxyz*invwt;
-                        //------------------------------------------------------------------------
-                        if( dist < distvec[z][i] )
-                        {
-                            distvec[z][i] = dist;
-                            klabels[z][i]  = n;
-                        }
-                    }
-                }
-            }
-        }
-        //-----------------------------------------------------------------
-        // Recalculate the centroid and store in the seed values
-        //-----------------------------------------------------------------
-        //instead of reassigning memory on each iteration, just reset.
-
-        sigmal.assign(numk, 0);
-        sigmaa.assign(numk, 0);
-        sigmab.assign(numk, 0);
-        sigmax.assign(numk, 0);
-        sigmay.assign(numk, 0);
-        sigmaz.assign(numk, 0);
-        clustersize.assign(numk, 0);
-
-        for( int d = 0; d < m_depth; d++  )
-        {
-            int ind(0);
-            for( int r = 0; r < m_height; r++ )
-            {
-                for( int c = 0; c < m_width; c++ )
-                {
-                    sigmal[klabels[d][ind]] += m_lvecvec[d][ind];
-                    sigmaa[klabels[d][ind]] += m_avecvec[d][ind];
-                    sigmab[klabels[d][ind]] += m_bvecvec[d][ind];
-                    sigmax[klabels[d][ind]] += c;
-                    sigmay[klabels[d][ind]] += r;
-                    sigmaz[klabels[d][ind]] += d;
-
-                    clustersize[klabels[d][ind]] += 1.0;
-                    ind++;
-                }
-            }
-        }
-
-        {for( int k = 0; k < numk; k++ )
-            {
-                if( clustersize[k] <= 0 ) clustersize[k] = 1;
-                inv[k] = 1.0/clustersize[k];//computing inverse now to multiply, than divide later
-            }}
-
-        {for( int k = 0; k < numk; k++ )
-            {
-                kseedsl[k] = sigmal[k]*inv[k];
-                kseedsa[k] = sigmaa[k]*inv[k];
-                kseedsb[k] = sigmab[k]*inv[k];
-                kseedsx[k] = sigmax[k]*inv[k];
-                kseedsy[k] = sigmay[k]*inv[k];
-                kseedsz[k] = sigmaz[k]*inv[k];
-            }}
-    }
-}
-
-
-//===========================================================================
 ///	SaveSuperpixelLabels
 ///
 ///	Save labels in raster scan order.
@@ -988,137 +851,6 @@ void SLIC::EnforceLabelConnectivity(
     if(yvec) delete [] yvec;
 }
 
-
-//===========================================================================
-///	RelabelStraySupervoxels
-//===========================================================================
-void SLIC::EnforceSupervoxelLabelConnectivity(
-        int**&						labels,//input - previous labels, output - new labels
-        const int&					width,
-        const int&					height,
-        const int&					depth,
-        int&						numlabels,
-        const int&					STEP)
-{
-    const int dx10[10] = {-1,  0,  1,  0, -1,  1,  1, -1,  0, 0};
-    const int dy10[10] = { 0, -1,  0,  1, -1, -1,  1,  1,  0, 0};
-    const int dz10[10] = { 0,  0,  0,  0,  0,  0,  0,  0, -1, 1};
-
-    int sz = width*height;
-    const int SUPSZ = STEP*STEP*STEP;
-
-    int adjlabel(0);//adjacent label
-    int* xvec = new int[SUPSZ*10];//a large enough size
-    int* yvec = new int[SUPSZ*10];//a large enough size
-    int* zvec = new int[SUPSZ*10];//a large enough size
-    //------------------
-    // memory allocation
-    //------------------
-    int** nlabels = new int*[depth];
-    {for( int d = 0; d < depth; d++ )
-        {
-            nlabels[d] = new int[sz];
-            for( int i = 0; i < sz; i++ ) nlabels[d][i] = -1;
-        }}
-    //------------------
-    // labeling
-    //------------------
-    int lab(0);
-    {for( int d = 0; d < depth; d++ )
-        {
-            int i(0);
-            for( int h = 0; h < height; h++ )
-            {
-                for( int w = 0; w < width; w++ )
-                {
-                    if(nlabels[d][i] < 0)
-                    {
-                        nlabels[d][i] = lab;
-                        //-------------------------------------------------------
-                        // Quickly find an adjacent label for use later if needed
-                        //-------------------------------------------------------
-                        {for( int n = 0; n < 10; n++ )
-                            {
-                                int x = w + dx10[n];
-                                int y = h + dy10[n];
-                                int z = d + dz10[n];
-                                if( (x >= 0 && x < width) && (y >= 0 && y < height) && (z >= 0 && z < depth) )
-                                {
-                                    int nindex = y*width + x;
-                                    if(nlabels[z][nindex] >= 0)
-                                    {
-                                        adjlabel = nlabels[z][nindex];
-                                    }
-                                }
-                            }}
-
-                        xvec[0] = w; yvec[0] = h; zvec[0] = d;
-                        int count(1);
-                        for( int c = 0; c < count; c++ )
-                        {
-                            for( int n = 0; n < 10; n++ )
-                            {
-                                int x = xvec[c] + dx10[n];
-                                int y = yvec[c] + dy10[n];
-                                int z = zvec[c] + dz10[n];
-
-                                if( (x >= 0 && x < width) && (y >= 0 && y < height) && (z >= 0 && z < depth))
-                                {
-                                    int nindex = y*width + x;
-
-                                    if( 0 > nlabels[z][nindex] && labels[d][i] == labels[z][nindex] )
-                                    {
-                                        xvec[count] = x;
-                                        yvec[count] = y;
-                                        zvec[count] = z;
-                                        nlabels[z][nindex] = lab;
-                                        count++;
-                                    }
-                                }
-
-                            }
-                        }
-                        //-------------------------------------------------------
-                        // If segment size is less then a limit, assign an
-                        // adjacent label found before, and decrement label count.
-                        //-------------------------------------------------------
-                        if(count <= (SUPSZ >> 2))//this threshold can be changed according to needs
-                        {
-                            for( int c = 0; c < count; c++ )
-                            {
-                                int ind = yvec[c]*width+xvec[c];
-                                nlabels[zvec[c]][ind] = adjlabel;
-                            }
-                            lab--;
-                        }
-                        //--------------------------------------------------------
-                        lab++;
-                    }
-                    i++;
-                }
-            }
-        }}
-    //------------------
-    // mem de-allocation
-    //------------------
-    {for( int d = 0; d < depth; d++ )
-        {
-            for( int i = 0; i < sz; i++ ) labels[d][i] = nlabels[d][i];
-        }}
-    {for( int d = 0; d < depth; d++ )
-        {
-            delete [] nlabels[d];
-        }}
-    delete [] nlabels;
-    //------------------
-    if(xvec) delete [] xvec;
-    if(yvec) delete [] yvec;
-    if(zvec) delete [] zvec;
-    //------------------
-    numlabels = lab;
-    //------------------
-}
-
 //===========================================================================
 ///	DoSuperpixelSegmentation_ForGivenSuperpixelSize
 ///
@@ -1230,85 +962,5 @@ void SLIC::DoSuperpixelSegmentation_ForGivenNumberOfSuperpixels(
 
     const int superpixelsize = 0.5+double(width*height)/double(K);
     DoSuperpixelSegmentation_ForGivenSuperpixelSize(imgMat,klabels,numlabels,superpixelsize,compactness);
-}
-
-//===========================================================================
-///	DoSupervoxelSegmentation
-///
-/// There is option to save the labels if needed.
-///
-/// The input parameter ubuffvec holds all the video frames. It is a
-/// 2-dimensional array. The first dimension is depth and the second dimension
-/// is pixel location in a frame. For example, to access a pixel in the 3rd
-/// frame (i.e. depth index 2), in the 4th row (i.e. height index 3) on the
-/// 37th column (i.e. width index 36), you would write:
-///
-/// unsigned int the_pixel_i_want = ubuffvec[2][3*width + 36]
-///
-/// In addition, here is how the RGB values are contained in a 32-bit unsigned
-/// integer:
-///
-/// [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]
-///
-///        Nothing              R                 G                  B
-///
-/// The RGB values are accessed from (and packed into) the unsigned integers
-/// using bitwise operators as can be seen in the function DoRGBtoLABConversion().
-///
-/// compactness value depends on the input pixels values. For instance, if
-/// the input is greyscale with values ranging from 0-100, then a compactness
-/// value of 20.0 would give good results. A greater value will make the
-/// supervoxels more compact while a smaller value would make them more uneven.
-//===========================================================================
-void SLIC::DoSupervoxelSegmentation(
-        unsigned int**&				ubuffvec,
-        const int&					width,
-        const int&					height,
-        const int&					depth,
-        int**&						klabels,
-        int&						numlabels,
-        const int&					supervoxelsize,
-        const double&               compactness)
-{
-    //---------------------------------------------------------
-    const int STEP = 0.5 + pow(double(supervoxelsize),1.0/3.0);
-    //---------------------------------------------------------
-    vector<double> kseedsl(0);
-    vector<double> kseedsa(0);
-    vector<double> kseedsb(0);
-    vector<double> kseedsx(0);
-    vector<double> kseedsy(0);
-    vector<double> kseedsz(0);
-
-    //--------------------------------------------------
-    m_width  = width;
-    m_height = height;
-    m_depth  = depth;
-    int sz = m_width*m_height;
-
-    //--------------------------------------------------
-    //klabels = new int*[depth];
-    m_lvecvec = new double*[depth];
-    m_avecvec = new double*[depth];
-    m_bvecvec = new double*[depth];
-    for( int d = 0; d < depth; d++ )
-    {
-        //klabels[d] = new int[sz];
-        m_lvecvec[d] = new double[sz];
-        m_avecvec[d] = new double[sz];
-        m_bvecvec[d] = new double[sz];
-        for( int s = 0; s < sz; s++ )
-        {
-            klabels[d][s] = -1;
-        }
-    }
-
-    DoRGBtoLABConversion(ubuffvec, m_lvecvec, m_avecvec, m_bvecvec);
-
-    GetKValues_LABXYZ(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, kseedsz, STEP);
-
-    PerformSupervoxelSLIC(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, kseedsz, klabels, STEP, compactness);
-
-    EnforceSupervoxelLabelConnectivity(klabels, width, height, depth, numlabels, STEP);
 }
 

@@ -99,7 +99,7 @@ public:
     void CalcuTextureEValue(Mat src, TextureEValues& EValue,
                             int size = 5, GrayLevel level = GRAY_8);
 
-    // 计算整幅图像的纹理特征
+    // 计算整幅图像的纹理特征，计算每一个像素的纹理特征
     void CalcuTextureImages(Mat src, Mat& imgEnergy, Mat& imgContrast, Mat& imgHomogenity, Mat& imgEntropy,
                             int size = 5, GrayLevel level = GRAY_8, bool ToAdjustImg = false);
 };
