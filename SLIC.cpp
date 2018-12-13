@@ -126,7 +126,7 @@ void SLIC::RGB2LAB(const int& sR, const int& sG, const int& sB, double& lval, do
 ///	For whole image: overlaoded floating point version
 //===========================================================================
 void SLIC::DoRGBtoLABConversion(
-        const unsigned int*&		ubuff,
+        Mat                         imgMat,
         double*&					lvec,
         double*&					avec,
         double*&					bvec)
@@ -136,18 +136,20 @@ void SLIC::DoRGBtoLABConversion(
     avec = new double[sz];
     bvec = new double[sz];
 
-    for( int j = 0; j < sz; j++ )
+
+    for (int row = 0; row < imgMat.rows; row++)
     {
-        unsigned int temp = ubuff[j];
+        for (int col = 0; col < imgMat.cols; col++)
+        {
+            int r = (uchar)imgMat.at<Vec3b>(row, col)[2];
+            int g = (uchar)imgMat.at<Vec3b>(row, col)[1];
+            int b = (uchar)imgMat.at<Vec3b>(row, col)[0];
 
-        int r = (ubuff[j] >> 16) & 0xFF;
-        int g = (ubuff[j] >>  8) & 0xFF;
-        int b = (ubuff[j]      ) & 0xFF;
-
-        RGB2LAB( r, g, b, lvec[j], avec[j], bvec[j] );
+            int j = row*m_width + col;
+            RGB2LAB( r, g, b, lvec[j], avec[j], bvec[j] );
+        }
     }
 }
-
 //===========================================================================
 ///	DoRGBtoLABConversion
 ///
@@ -180,7 +182,7 @@ void SLIC::DoRGBtoLABConversion(
 /// statement inside the loop that looks at neighbourhood.
 //=================================================================================
 void SLIC::DrawContoursAroundSegments(
-        unsigned int*&			ubuff,
+        Mat                     imgMat,
         int*&					labels,
         const int&				width,
         const int&				height,
@@ -268,8 +270,9 @@ void SLIC::DrawContoursAroundSegments(
     int numboundpix = cind;//int(contourx.size());
     for( int j = 0; j < numboundpix; j++ )
     {
-        int ii = contoury[j]*width + contourx[j];
-        ubuff[ii] = 0xffffff;
+        imgMat.at<Vec3b>(contoury[j], contourx[j])[2] = 255;   //Red
+        imgMat.at<Vec3b>(contoury[j], contourx[j])[1] = 255;   //Green
+        imgMat.at<Vec3b>(contoury[j], contourx[j])[0] = 255;   //Blue
 
         for( int n = 0; n < 8; n++ )
         {
@@ -278,7 +281,12 @@ void SLIC::DrawContoursAroundSegments(
             if( (x >= 0 && x < width) && (y >= 0 && y < height) )
             {
                 int ind = y*width + x;
-                if(!istaken[ind]) ubuff[ind] = 0;
+                if(!istaken[ind])
+                {
+                    imgMat.at<Vec3b>(y, x)[2] = 0;   //Red
+                    imgMat.at<Vec3b>(y, x)[1] = 0;   //Green
+                    imgMat.at<Vec3b>(y, x)[0] = 0;   //Blue
+                }
             }
         }
     }
@@ -1132,9 +1140,7 @@ void SLIC::EnforceSupervoxelLabelConnectivity(
 /// The labels can be saved if needed using SaveSuperpixelLabels()
 //===========================================================================
 void SLIC::DoSuperpixelSegmentation_ForGivenSuperpixelSize(
-        const unsigned int*         ubuff,
-        const int					width,
-        const int					height,
+        Mat                         imgMat,
         int*&						klabels,
         int&						numlabels,
         const int&					superpixelsize,
@@ -1150,8 +1156,8 @@ void SLIC::DoSuperpixelSegmentation_ForGivenSuperpixelSize(
     vector<double> kseedsy(0);
 
     //--------------------------------------------------
-    m_width  = width;
-    m_height = height;
+    m_width  = imgMat.cols;
+    m_height = imgMat.rows;
     int sz = m_width*m_height;
     //klabels.resize( sz, -1 );
     //--------------------------------------------------
@@ -1160,16 +1166,21 @@ void SLIC::DoSuperpixelSegmentation_ForGivenSuperpixelSize(
     //--------------------------------------------------
     if(1)//LAB, the default option
     {
-        DoRGBtoLABConversion(ubuff, m_lvec, m_avec, m_bvec);
+        DoRGBtoLABConversion(imgMat, m_lvec, m_avec, m_bvec);
     }
     else//RGB
     {
         m_lvec = new double[sz]; m_avec = new double[sz]; m_bvec = new double[sz];
-        for( int i = 0; i < sz; i++ )
+
+        for (int row = 0; row < imgMat.rows; row++)
         {
-            m_lvec[i] = ubuff[i] >> 16 & 0xff;
-            m_avec[i] = ubuff[i] >>  8 & 0xff;
-            m_bvec[i] = ubuff[i]       & 0xff;
+            for (int col = 0; col < imgMat.cols; col++)
+            {
+                int i = row*m_width + col;
+                m_lvec[i] = (uchar)imgMat.at<Vec3b>(row, col)[2];
+                m_avec[i] = (uchar)imgMat.at<Vec3b>(row, col)[1];
+                m_bvec[i] = (uchar)imgMat.at<Vec3b>(row, col)[0];
+            }
         }
     }
     //--------------------------------------------------
@@ -1208,16 +1219,17 @@ void SLIC::DoSuperpixelSegmentation_ForGivenSuperpixelSize(
 /// The labels can be saved if needed using SaveSuperpixelLabels()
 //===========================================================================
 void SLIC::DoSuperpixelSegmentation_ForGivenNumberOfSuperpixels(
-        const unsigned int*                             ubuff,
-        const int					width,
-        const int					height,
+        Mat                         imgMat,
         int*&						klabels,
         int&						numlabels,
         const int&					K,//required number of superpixels
         const double&                                   compactness)//weight given to spatial distance
 {
+    int width = imgMat.cols;
+    int height = imgMat.rows;
+
     const int superpixelsize = 0.5+double(width*height)/double(K);
-    DoSuperpixelSegmentation_ForGivenSuperpixelSize(ubuff,width,height,klabels,numlabels,superpixelsize,compactness);
+    DoSuperpixelSegmentation_ForGivenSuperpixelSize(imgMat,klabels,numlabels,superpixelsize,compactness);
 }
 
 //===========================================================================

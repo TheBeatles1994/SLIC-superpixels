@@ -17,6 +17,10 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv/cv.h>
+
+using namespace cv;
 using namespace std;
 
 
@@ -29,26 +33,23 @@ public:
     // Superpixel segmentation for a given step size (superpixel size ~= step*step)
     //============================================================================
     void DoSuperpixelSegmentation_ForGivenSuperpixelSize(
-            const unsigned int*                            ubuff,//Each 32 bit unsigned int contains ARGB pixel values.
-            const int					width,
-            const int					height,
+            Mat                         imgMat,
             int*&						klabels,
             int&						numlabels,
             const int&					superpixelsize,
-            const double&                                   compactness);
+            const double&               compactness);
     //============================================================================
     // Superpixel segmentation for a given number of superpixels
     //============================================================================
     void DoSuperpixelSegmentation_ForGivenNumberOfSuperpixels(
-            const unsigned int*                             ubuff,
-            const int					width,
-            const int					height,
+            Mat                         imgMat,
             int*&						klabels,
             int&						numlabels,
             const int&					K,//required number of superpixels
-            const double&                                   compactness);//10-20 is a good value for CIELAB space
+            const double&               compactness);//10-20 is a good value for CIELAB space
     //============================================================================
     // Supervoxel segmentation for a given step size (supervoxel size ~= step*step*step)
+    // 未适应OpenCV
     //============================================================================
     void DoSupervoxelSegmentation(
             unsigned int**&		ubuffvec,
@@ -61,6 +62,7 @@ public:
             const double&                                   compactness);
     //============================================================================
     // Save superpixel labels in a text file in raster scan order
+    // 未适应OpenCV
     //============================================================================
     void SaveSuperpixelLabels(
             const int*&					labels,
@@ -70,6 +72,7 @@ public:
             const string&				path);
     //============================================================================
     // Save supervoxel labels in a text file in raster scan, depth order
+    // 未适应OpenCV
     //============================================================================
     void SaveSupervoxelLabels(
             const int**&				labels,
@@ -83,11 +86,11 @@ public:
     // Can also be used to draw boundaries around supervoxels, i.e layer by layer.
     //============================================================================
     void DrawContoursAroundSegments(
-            unsigned int*&				segmentedImage,
-            int*&						labels,
-            const int&					width,
-            const int&					height,
-            const unsigned int&			color );
+            Mat                     imgMat,
+            int*&					labels,
+            const int&				width,
+            const int&				height,
+            const unsigned int&				color );
 
 private:
     //============================================================================
@@ -184,12 +187,13 @@ private:
     // sRGB to CIELAB conversion for 2-D images
     //============================================================================
     void DoRGBtoLABConversion(
-            const unsigned int*&		ubuff,
+            Mat                         imgMat,
             double*&					lvec,
             double*&					avec,
             double*&					bvec);
     //============================================================================
     // sRGB to CIELAB conversion for 3-D volumes
+    // 未适应OpenCV
     //============================================================================
     void DoRGBtoLABConversion(
             unsigned int**&				ubuff,
