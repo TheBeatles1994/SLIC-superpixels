@@ -15,7 +15,7 @@ void testGLCM(Mat imgMat);
 int main(int argc, char *argv[])
 {
 
-    Mat imgMat = imread("imgs/dog.jpg");
+    Mat imgMat = imread("imgs/FB043_293.jpg");
 
     //testSLIC(imgMat);
     testGLCM(imgMat);
@@ -104,7 +104,7 @@ void testGLCM(Mat imgMat)
     cout<<"    Energy: "<<EValues.energy<<endl;
     cout<<"    EntropyData: "<<EValues.entropy<<endl;
     cout<<"    Homogenity: "<<EValues.homogenity<<endl;
-#if 1
+#if 0
     imshow("Energy", imgEnergy);
     imshow("Contrast", imgContrast);
     imshow("Homogenity", imgHomogenity);
