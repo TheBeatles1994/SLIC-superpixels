@@ -18,9 +18,9 @@ string doubleToString(double num);
 
 int main(int argc, char *argv[])
 {
-
-    Mat imgMat = imread("imgs/FB043_293.jpg");
-    //Mat imgMat = imread("imgs/MJ.jpg");
+    Mat imgMat = imread("imgs/sigmoid.jpg");
+    //Mat imgMat = imread("imgs/FB043_293.jpg");
+    //Mat imgMat = imread("imgs/dog.jpg");
 
     testSLIC(imgMat);
     //testGLCM(imgMat);
@@ -39,13 +39,14 @@ int main(int argc, char *argv[])
 void testSLIC(Mat imgMat)
 {
     double lambda=1;
+    bool newALGO = true;
 #if 0
     for(int i=0;i<10;i++)
     {
         cout<<"Processing..."<<endl;
         SLIC slic;
         slic.setLambda(lambda);
-        slic.runSLIC(imgMat, 25, 10,true);
+        slic.runSLIC(imgMat, 25, 10,newALGO);
 
         Mat slicMat = slic.getSlicImg();
         //imshow("SLIC", slicMat);
@@ -55,14 +56,22 @@ void testSLIC(Mat imgMat)
         lambda -= 0.001;
     }
 #else
-    SLIC slic;
-    slic.setLambda(lambda);
-    slic.runSLIC(imgMat, 25, 10,true);
+    for(int i=0;i<2;i++)
+    {
+        SLIC slic;
+        slic.setLambda(lambda);
+        slic.runSLIC(imgMat, 27, 10,newALGO);
 
-    Mat slicMat = slic.getSlicImg();
-    //imshow("SLIC", slicMat);
-    //cvWaitKey();
-    imwrite("slic_new_" + doubleToString(lambda) + ".jpg", slicMat);
+        Mat slicMat = slic.getSlicImg();
+        //imshow("SLIC", slicMat);
+        //cvWaitKey();
+        if(newALGO)
+            imwrite("slic_new_" + doubleToString(lambda) + ".jpg", slicMat);
+        else
+            imwrite("slic_old.jpg", slicMat);
+        newALGO = !newALGO;
+    }
+
 #endif
     cout<<"Finished!"<<endl;
 }

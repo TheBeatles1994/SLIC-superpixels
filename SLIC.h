@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv/cv.h>
+#include "glcm.h"
 
 using namespace cv;
 using namespace std;
@@ -97,9 +98,7 @@ private:
             const int&					STEP,
             const vector<double>&		edgemag,
             const double&				m = 10.0);
-    void newPerformSuperpixelSLIC(
-            Mat                         imgMat,
-            vector<double>&				kseedsl,
+    void newPerformSuperpixelSLIC(vector<double>&				kseedsl,
             vector<double>&				kseedsa,
             vector<double>&				kseedsb,
             vector<double>&				kseedsx,
@@ -222,6 +221,7 @@ private:
 
     Mat slicImg;    //原始方法的结果
     double lambda = 0.8;  //lambda
+    GLCM glcm;
 };
 
 #endif // !defined(_SLIC_H_INCLUDED_)

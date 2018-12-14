@@ -56,6 +56,8 @@ void SLIC::runSLIC(Mat imgMat, int K, double compactness, bool newALGO)
     int* labels = new int[imgMat.rows * imgMat.cols];
     int numlabels(0);
 
+    glcm.run(imgMat);
+
     DoSuperpixelSegmentation_ForGivenNumberOfSuperpixels(imgMat, labels, numlabels, K, compactness, newALGO);
     //slicImg.create(imgMat.size(), imgMat.type());
     imgMat.copyTo(slicImg);
@@ -667,7 +669,6 @@ void SLIC::PerformSuperpixelSLIC(
 }
 //===========================================================================
 void SLIC::newPerformSuperpixelSLIC(
-        Mat                         imgMat,
         vector<double>&				kseedsl,
         vector<double>&				kseedsa,
         vector<double>&				kseedsb,
@@ -678,9 +679,6 @@ void SLIC::newPerformSuperpixelSLIC(
         const vector<double>&                   edgemag,
         const double&				M)
 {
-    GLCM glcm;
-    glcm.run(imgMat);
-
     TextureEValues EValues = glcm.getEValues();
     Mat imgEnergy = glcm.getEnergy();
     Mat imgContrast = glcm.getContrast();
@@ -1036,8 +1034,10 @@ void SLIC::newEnforceLabelConnectivity(
     const int sz = width*height;
     const int SUPSZ = sz/K;
     //nlabels.resize(sz, -1);
-    for( int i = 0; i < sz; i++ ) nlabels[i] = -1;
-    int label(0); // 新标签
+    for( int i = 0; i < sz; i++ ) nlabels[i] = -1;  //新的labels，全部标记为-1
+    int label(0); // 新标签，从0开始计数
+    //vector<vector<pair<int, int> > > labelCoordinateVec(sz, vector<pair<int, int> >());    //保存每一个标签下面的坐标值pair(x, y)
+    vector<vector<pair<int, int> > > labelCoordinateVec;
 
     // 同一个标签下的像素
     int* xvec = new int[sz];
@@ -1045,37 +1045,30 @@ void SLIC::newEnforceLabelConnectivity(
 
     int oindex(0);	//正在处理的像素的编号
     int adjlabel(0);//adjacent label
+    vector<int> adjlabelvec;    //adjacent label vector
+    Mat imgEnergy = glcm.getEnergy();
+    Mat imgContrast = glcm.getContrast();
+    Mat imgHomogenity = glcm.getHomogenity();
+    Mat imgEntropy = glcm.getEntropy();
     //开始处理每一个像素 按行扫描
     for( int j = 0; j < height; j++ )
     {
         for( int k = 0; k < width; k++ )
         {
             //当该像素还没有被处理过时，开始进行处理
+            //注意此处每次并不是只处理一个像素！而是多个！
             if( 0 > nlabels[oindex] )
             {
+                vector<pair<int, int> > tempPair;
                 nlabels[oindex] = label;
                 //--------------------
                 // Start a new segment 将当前坐标加到新的超像素块坐标集合中
                 //--------------------
                 xvec[0] = k;
                 yvec[0] = j;
-                //-------------------------------------------------------
-                // Quickly find an adjacent label for use later if needed
-                // 先找一个临近的已经标记过的像素的标记号，当本超像素块中的像素个数偏少时会用得上
-                //-------------------------------------------------------
-                {for( int n = 0; n < 4; n++ )
-                    {
-                        int x = xvec[0] + dx4[n];
-                        int y = yvec[0] + dy4[n];
-                        //当临近像素的坐标合法时才进行处理
-                        if( (x >= 0 && x < width) && (y >= 0 && y < height) )
-                        {
-                            int nindex = y*width + x;
-                            //若临近像素处理过，则adjlabel值设置为临近像素的值
-                            if(nlabels[nindex] >= 0) adjlabel = nlabels[nindex];
-                        }
-                    }}
+                tempPair.push_back(pair<int, int>(k, j));
 
+                /* 注意此处将所有的同本像素一样label的像素都遍历了遍，同时可得到本超像素区域的像素总个数count */
                 int count(1);//本超像素块中的像素个数
                 for( int c = 0; c < count; c++ )
                 {
@@ -1090,11 +1083,12 @@ void SLIC::newEnforceLabelConnectivity(
                         {
                             int nindex = y*width + x;
 
-                            // 若邻域像素未被标记过，同时邻域像素与当前处理的像素在旧标记上是同一个分类，那么添加此坐标到超像素坐标集合中
+                            // 若邻域像素未被标记过，同时邻域像素与当前处理的像素在旧标记上是同一个分类，那么添加此坐标到超像素坐标集合中，同时对其标记
                             if( 0 > nlabels[nindex] && labels[oindex] == labels[nindex] )
                             {
                                 xvec[count] = x;
                                 yvec[count] = y;
+                                tempPair.push_back(pair<int, int>(x, y));
                                 nlabels[nindex] = label;
                                 count++;
                             }
@@ -1102,20 +1096,101 @@ void SLIC::newEnforceLabelConnectivity(
                     }
                 }
                 //-------------------------------------------------------
+                // Quickly find an adjacent label for use later if needed
+                // 先对本像素的四邻域附近找一个已经标记过的与本身label不同的像素的标记号，当本超像素块中的像素个数偏少时会用得上
+                //-------------------------------------------------------
+                {for( int n = 0; n < 4; n++ )
+                    {
+                        int x = xvec[0] + dx4[n];
+                        int y = yvec[0] + dy4[n];
+                        //当临近像素的坐标合法时才进行处理
+                        if( (x >= 0 && x < width) && (y >= 0 && y < height) )
+                        {
+                            int nindex = y*width + x;
+                            //创新点：在此处设置一个vector，添加不同的邻域像素值，以便后面进行比较，看选择将adjlabel值设置为哪一个临近像素的label
+                            if(nlabels[nindex] >= 0 && nlabels[nindex]!=label)
+                            {
+                                adjlabel = nlabels[nindex];
+                                adjlabelvec.push_back(nlabels[nindex]); //注意此处添加的nlabels[nindex]一定是比当前label值小的
+                            }
+                        }
+                    }}
+
+                //-------------------------------------------------------
                 // If segment size is less then a limit, assign an
                 // adjacent label found before, and decrement label count.
                 // 当本超像素块中的像素个数不足规定的一半时，将该超像素块归并到临近的像素块中，同时此次循环label标记不发生变化
                 //-------------------------------------------------------
                 if(count <= SUPSZ >> 2)
                 {
+                    struct TextureEValues tValues;
+                    tValues.contrast = 0;
+                    tValues.energy = 0;
+                    tValues.entropy = 0;
+                    tValues.homogenity = 0;
+
+                    //统计本超像素块内的纹理信息
+                    for(auto it=tempPair.begin();it!=tempPair.end();it++)
+                    {
+                        tValues.energy += imgEnergy.at<uchar>((*it).second, (*it).first);
+                        tValues.contrast += imgContrast.at<uchar>((*it).second, (*it).first);
+                        tValues.homogenity += imgHomogenity.at<uchar>((*it).second, (*it).first);
+                        tValues.entropy += imgEntropy.at<uchar>((*it).second, (*it).first);
+                    }
+
+                    tValues.contrast /= tempPair.size();
+                    tValues.energy /= tempPair.size();
+                    tValues.entropy /= tempPair.size();
+                    tValues.homogenity /= tempPair.size();
+
+                    double dist = 10000000;
+                    //比较本超像素块与每个临近超像素块的纹理信息，并进行最终的选择
+                    for(auto ita = adjlabelvec.begin();ita!=adjlabelvec.end();ita++)
+                    {
+                        struct TextureEValues tempValues;
+                        tempValues.contrast = 0;
+                        tempValues.energy = 0;
+                        tempValues.entropy = 0;
+                        tempValues.homogenity = 0;
+                        for(auto itb = labelCoordinateVec[*ita].begin();itb!=labelCoordinateVec[*ita].end();itb++)
+                        {
+                            tempValues.energy += imgEnergy.at<uchar>((*itb).second, (*itb).first);
+                            tempValues.contrast += imgContrast.at<uchar>((*itb).second, (*itb).first);
+                            tempValues.homogenity += imgHomogenity.at<uchar>((*itb).second, (*itb).first);
+                            tempValues.entropy += imgEntropy.at<uchar>((*itb).second, (*itb).first);
+                        }
+                        tempValues.contrast /= labelCoordinateVec[*ita].size();
+                        tempValues.energy /= labelCoordinateVec[*ita].size();
+                        tempValues.entropy /= labelCoordinateVec[*ita].size();
+                        tempValues.homogenity /= labelCoordinateVec[*ita].size();
+
+                        double tempdist = (tValues.energy - tempValues.energy)*(tValues.energy - tempValues.energy)+
+                                (tempValues.contrast - tempValues.contrast)*(tempValues.contrast - tempValues.contrast)+
+                                (tempValues.homogenity - tempValues.homogenity)*(tempValues.homogenity - tempValues.homogenity)+
+                                (tempValues.entropy - tempValues.entropy)*(tempValues.entropy - tempValues.entropy);
+                        if(tempdist<dist)
+                        {
+                            dist = tempdist;
+                            adjlabel = *ita;
+                        }
+                    }
+
                     for( int c = 0; c < count; c++ )
                     {
                         int ind = yvec[c]*width+xvec[c];
                         nlabels[ind] = adjlabel;
                     }
+                    for(auto it=tempPair.begin();it!=tempPair.end();it++)
+                    {
+                        labelCoordinateVec[adjlabel].push_back(*it);
+                    }
                     label--;
                 }
+                else
+                    labelCoordinateVec.push_back(tempPair);
                 label++;
+
+                adjlabelvec.clear();
             }
             oindex++;
         }
@@ -1199,11 +1274,14 @@ void SLIC::DoSuperpixelSegmentation_ForGivenSuperpixelSize(
     if(!newALGO)
         PerformSuperpixelSLIC(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, klabels, STEP, edgemag,compactness);
     else
-        newPerformSuperpixelSLIC(imgMat, kseedsl,kseedsa, kseedsb, kseedsx, kseedsy, klabels, STEP, edgemag,compactness);
+        newPerformSuperpixelSLIC(kseedsl,kseedsa, kseedsb, kseedsx, kseedsy, klabels, STEP, edgemag,compactness);
     numlabels = kseedsl.size();
 
     int* nlabels = new int[sz];
-    EnforceLabelConnectivity(klabels, m_width, m_height, nlabels, numlabels, double(sz)/double(STEP*STEP));
+    if(!newALGO)
+        EnforceLabelConnectivity(klabels, m_width, m_height, nlabels, numlabels, double(sz)/double(STEP*STEP));
+    else
+        newEnforceLabelConnectivity(imgMat, klabels, m_width, m_height, nlabels, numlabels, double(sz)/double(STEP*STEP));
     {for(int i = 0; i < sz; i++ ) klabels[i] = nlabels[i];}
     if(nlabels) delete [] nlabels;
 }
