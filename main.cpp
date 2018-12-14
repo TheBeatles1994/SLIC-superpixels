@@ -18,9 +18,9 @@ string doubleToString(double num);
 
 int main(int argc, char *argv[])
 {
-    Mat imgMat = imread("imgs/sigmoid.jpg");
+    //Mat imgMat = imread("imgs/sigmoid.jpg");
     //Mat imgMat = imread("imgs/FB043_293.jpg");
-    //Mat imgMat = imread("imgs/dog.jpg");
+    Mat imgMat = imread("imgs/dog.jpg");
 
     testSLIC(imgMat);
     //testGLCM(imgMat);
@@ -55,7 +55,8 @@ void testSLIC(Mat imgMat)
 
         lambda -= 0.001;
     }
-#else
+#endif
+#if 0
     for(int i=0;i<2;i++)
     {
         SLIC slic;
@@ -71,6 +72,14 @@ void testSLIC(Mat imgMat)
             imwrite("slic_old.jpg", slicMat);
         newALGO = !newALGO;
     }
+
+#endif
+#if 1
+    SLIC slic;
+    slic.runSLICO(imgMat, 27,false);
+
+    Mat slicMat = slic.getSlicImg();
+    imwrite("slico.jpg", slicMat);
 
 #endif
     cout<<"Finished!"<<endl;

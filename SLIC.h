@@ -32,6 +32,7 @@ public:
     virtual ~SLIC();
     //SLIC算法启动
     void runSLIC(Mat imgMat, int K, double compactness,  bool newALGO = false);
+    void runSLICO(Mat imgMat, int K, bool newALGO = false);
     //============================================================================
     // Superpixel segmentation for a given step size (superpixel size ~= step*step)
     //============================================================================
@@ -107,6 +108,40 @@ private:
             const int&					STEP,
             const vector<double>&		edgemag,
             const double&				m = 10.0);
+    void PerformSLICO_ForGivenK(
+            Mat                         imgMat,
+            int*						klabels,
+            int&						numlabels,
+            const int&					K,//required number of superpixels
+            const double&				m);//weight given to spatial distance
+    void DrawContoursAroundSegmentsTwoColors(
+            Mat                     imgMat,
+            const int*				labels,
+            const int&				width,
+            const int&				height);
+    //===========================================================================
+    ///	GetLABXYSeeds_ForGivenK
+    ///
+    /// The k seed values are taken as uniform spatial pixel samples.
+    //===========================================================================
+    void GetLABXYSeeds_ForGivenK(
+            vector<double>&				kseedsl,
+            vector<double>&				kseedsa,
+            vector<double>&				kseedsb,
+            vector<double>&				kseedsx,
+            vector<double>&				kseedsy,
+            const int&					K,
+            const bool&					perturbseeds,
+            const vector<double>&		edgemag);
+    void PerformSuperpixelSegmentation_VariableSandM(
+            vector<double>&				kseedsl,
+            vector<double>&				kseedsa,
+            vector<double>&				kseedsb,
+            vector<double>&				kseedsx,
+            vector<double>&				kseedsy,
+            int*						klabels,
+            const int&					STEP,
+            const int&					NUMITR);
     //============================================================================
     // Pick seeds for superpixels when step size of superpixels is given.
     //============================================================================

@@ -9,8 +9,12 @@
 #include <cmath>
 #include <iostream>
 #include <fstream>
+#include <crtdbg.h>
 #include "SLIC.h"
 #include "glcm.h"
+
+#define MyMAX(a,b) (((a) > (b)) ? (a) : (b))
+#define MyMIN(a,b) (((a) < (b)) ? (a) : (b))
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -59,9 +63,18 @@ void SLIC::runSLIC(Mat imgMat, int K, double compactness, bool newALGO)
     glcm.run(imgMat);
 
     DoSuperpixelSegmentation_ForGivenNumberOfSuperpixels(imgMat, labels, numlabels, K, compactness, newALGO);
-    //slicImg.create(imgMat.size(), imgMat.type());
     imgMat.copyTo(slicImg);
     DrawContoursAroundSegments(slicImg, labels, imgMat.cols, imgMat.rows, 0);
+    if(labels) delete [] labels;
+}
+
+void SLIC::runSLICO(Mat imgMat, int K, bool newALGO)
+{
+    int* labels = new int[imgMat.rows * imgMat.cols];
+    int numlabels(0);
+    PerformSLICO_ForGivenK(imgMat, labels, numlabels, K, 10.0);//for a given number K of superpixels
+    imgMat.copyTo(slicImg);
+    DrawContoursAroundSegmentsTwoColors(slicImg, labels, imgMat.cols, imgMat.rows);//for black-and-white contours around superpixels
     if(labels) delete [] labels;
 }
 
@@ -443,7 +456,7 @@ void SLIC::GetLABXYSeeds_ForGivenStepSize(
         {
             int xe = x*xerrperstrip;
             int seedx = (x*STEP+xoff+xe);
-            if(hexgrid){ seedx = x*STEP+(xoff<<(y&0x1))+xe; seedx = min(m_width-1,seedx); }//for hex grid sampling
+            if(hexgrid){ seedx = x*STEP+(xoff<<(y&0x1))+xe; seedx = MyMIN(m_width-1,seedx); }//for hex grid sampling
             int seedy = (y*STEP+yoff+ye);
             int i = seedy*m_width + seedx;
 
@@ -576,10 +589,10 @@ void SLIC::PerformSuperpixelSLIC(
         distvec.assign(sz, DBL_MAX);
         for( int n = 0; n < numk; n++ )	//[0, numk)是种子点的label
         {
-            y1 = max(0.0,			kseedsy[n]-offset);
-            y2 = min((double)m_height,	kseedsy[n]+offset);
-            x1 = max(0.0,			kseedsx[n]-offset);
-            x2 = min((double)m_width,	kseedsx[n]+offset);
+            y1 = MyMAX(0.0,			kseedsy[n]-offset);
+            y2 = MyMIN((double)m_height,	kseedsy[n]+offset);
+            x1 = MyMAX(0.0,			kseedsx[n]-offset);
+            x2 = MyMIN((double)m_width,	kseedsx[n]+offset);
 
 
             // 在2S*2S的范围内的每个像素进行计算，即计算其到种子点的距离
@@ -714,10 +727,10 @@ void SLIC::newPerformSuperpixelSLIC(
         distvec.assign(sz, DBL_MAX);
         for( int n = 0; n < numk; n++ )	//[0, numk)是种子点的label
         {
-            y1 = max(0.0,			kseedsy[n]-offset);
-            y2 = min((double)m_height,	kseedsy[n]+offset);
-            x1 = max(0.0,			kseedsx[n]-offset);
-            x2 = min((double)m_width,	kseedsx[n]+offset);
+            y1 = MyMAX(0.0,			kseedsy[n]-offset);
+            y2 = MyMIN((double)m_height,	kseedsy[n]+offset);
+            x1 = MyMAX(0.0,			kseedsx[n]-offset);
+            x2 = MyMIN((double)m_width,	kseedsx[n]+offset);
 
             // 在2S*2S的范围内的每个像素进行计算，即计算其到种子点的距离
             for( int y = y1; y < y2; y++ )
@@ -1319,4 +1332,357 @@ void SLIC::DoSuperpixelSegmentation_ForGivenNumberOfSuperpixels(
     const int superpixelsize = 0.5+double(width*height)/double(K);
     DoSuperpixelSegmentation_ForGivenSuperpixelSize(imgMat,klabels,numlabels,superpixelsize,compactness, newALGO);
 }
+//===========================================================================
+///	PerformSLICO_ForGivenK
+///
+/// Zero parameter SLIC algorithm for a given number K of superpixels.
+//===========================================================================
+void SLIC::PerformSLICO_ForGivenK(
+        Mat                         imgMat,
+        int*						klabels,
+        int&						numlabels,
+        const int&					K,//required number of superpixels
+        const double&				m)//weight given to spatial distance
+{
+    vector<double> kseedsl(0);
+    vector<double> kseedsa(0);
+    vector<double> kseedsb(0);
+    vector<double> kseedsx(0);
+    vector<double> kseedsy(0);
 
+    //--------------------------------------------------
+    m_width  = imgMat.cols;
+    m_height = imgMat.rows;
+    int sz = m_width*m_height;
+    //--------------------------------------------------
+    //if(0 == klabels) klabels = new int[sz];
+    for( int s = 0; s < sz; s++ ) klabels[s] = -1;
+    //--------------------------------------------------
+    if(1)//LAB, the default option
+    {
+        DoRGBtoLABConversion(imgMat, m_lvec, m_avec, m_bvec);
+    }
+    else//RGB
+    {
+        m_lvec = new double[sz]; m_avec = new double[sz]; m_bvec = new double[sz];
+
+        for (int row = 0; row < imgMat.rows; row++)
+        {
+            for (int col = 0; col < imgMat.cols; col++)
+            {
+                int i = row*m_width + col;
+                m_lvec[i] = (uchar)imgMat.at<Vec3b>(row, col)[2];
+                m_avec[i] = (uchar)imgMat.at<Vec3b>(row, col)[1];
+                m_bvec[i] = (uchar)imgMat.at<Vec3b>(row, col)[0];
+            }
+        }
+    }
+    //--------------------------------------------------
+
+    bool perturbseeds(true);
+    vector<double> edgemag(0);
+    if(perturbseeds) DetectLabEdges(m_lvec, m_avec, m_bvec, m_width, m_height, edgemag);
+    GetLABXYSeeds_ForGivenK(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, K, perturbseeds, edgemag);
+
+    int STEP = sqrt(double(sz)/double(K)) + 2.0;//adding a small value in the even the STEP size is too small.
+    //PerformSuperpixelSLIC(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, klabels, STEP, edgemag, m);
+    PerformSuperpixelSegmentation_VariableSandM(kseedsl,kseedsa,kseedsb,kseedsx,kseedsy,klabels,STEP,10);
+    numlabels = kseedsl.size();
+
+    int* nlabels = new int[sz];
+    EnforceLabelConnectivity(klabels, m_width, m_height, nlabels, numlabels, K);
+    {for(int i = 0; i < sz; i++ ) klabels[i] = nlabels[i];}
+    if(nlabels) delete [] nlabels;
+}
+
+//===========================================================================
+///	GetLABXYSeeds_ForGivenK
+///
+/// The k seed values are taken as uniform spatial pixel samples.
+//===========================================================================
+void SLIC::GetLABXYSeeds_ForGivenK(
+        vector<double>&				kseedsl,
+        vector<double>&				kseedsa,
+        vector<double>&				kseedsb,
+        vector<double>&				kseedsx,
+        vector<double>&				kseedsy,
+        const int&					K,
+        const bool&					perturbseeds,
+        const vector<double>&		edgemag)
+{
+    int sz = m_width*m_height;
+    double step = sqrt(double(sz)/double(K));
+    int T = step;
+    int xoff = step/2;
+    int yoff = step/2;
+
+    int n(0);int r(0);
+    for( int y = 0; y < m_height; y++ )
+    {
+        int Y = y*step + yoff;
+        if( Y > m_height-1 ) break;
+
+        for( int x = 0; x < m_width; x++ )
+        {
+            //int X = x*step + xoff;//square grid
+            int X = x*step + (xoff<<(r&0x1));//hex grid
+            if(X > m_width-1) break;
+
+            int i = Y*m_width + X;
+
+            //_ASSERT(n < K);
+
+            //kseedsl[n] = m_lvec[i];
+            //kseedsa[n] = m_avec[i];
+            //kseedsb[n] = m_bvec[i];
+            //kseedsx[n] = X;
+            //kseedsy[n] = Y;
+            kseedsl.push_back(m_lvec[i]);
+            kseedsa.push_back(m_avec[i]);
+            kseedsb.push_back(m_bvec[i]);
+            kseedsx.push_back(X);
+            kseedsy.push_back(Y);
+            n++;
+        }
+        r++;
+    }
+
+    if(perturbseeds)
+    {
+        PerturbSeeds(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, edgemag);
+    }
+}
+//===========================================================================
+///	PerformSuperpixelSegmentation_VariableSandM
+///
+///	Magic SLIC - no parameters
+///
+///	Performs k mean segmentation. It is fast because it looks locally, not
+/// over the entire image.
+/// This function picks the maximum value of color distance as compact factor
+/// M and maximum pixel distance as grid step size S from each cluster (13 April 2011).
+/// So no need to input a constant value of M and S. There are two clear
+/// advantages:
+///
+/// [1] The algorithm now better handles both textured and non-textured regions
+/// [2] There is not need to set any parameters!!!
+///
+/// SLICO (or SLIC Zero) dynamically varies only the compactness factor S,
+/// not the step size S.
+//===========================================================================
+void SLIC::PerformSuperpixelSegmentation_VariableSandM(
+        vector<double>&				kseedsl,
+        vector<double>&				kseedsa,
+        vector<double>&				kseedsb,
+        vector<double>&				kseedsx,
+        vector<double>&				kseedsy,
+        int*						klabels,
+        const int&					STEP,
+        const int&					NUMITR)
+{
+    int sz = m_width*m_height;
+    const int numk = kseedsl.size();
+    //double cumerr(99999.9);
+    int numitr(0);
+
+    //----------------
+    int offset = STEP;
+    if(STEP < 10) offset = STEP*1.5;
+    //----------------
+
+    vector<double> sigmal(numk, 0);
+    vector<double> sigmaa(numk, 0);
+    vector<double> sigmab(numk, 0);
+    vector<double> sigmax(numk, 0);
+    vector<double> sigmay(numk, 0);
+    vector<int> clustersize(numk, 0);
+    vector<double> inv(numk, 0);//to store 1/clustersize[k] values
+    vector<double> distxy(sz, DBL_MAX);
+    vector<double> distlab(sz, DBL_MAX);
+    vector<double> distvec(sz, DBL_MAX);
+    vector<double> maxlab(numk, 10*10);//THIS IS THE VARIABLE VALUE OF M, just start with 10
+    vector<double> maxxy(numk, STEP*STEP);//THIS IS THE VARIABLE VALUE OF M, just start with 10
+
+    double invxywt = 1.0/(STEP*STEP);//NOTE: this is different from how usual SLIC/LKM works
+
+    while( numitr < NUMITR )
+    {
+        //------
+        //cumerr = 0;
+        numitr++;
+        //------
+
+        distvec.assign(sz, DBL_MAX);
+        for( int n = 0; n < numk; n++ )
+        {
+            int y1 = MyMAX(0,			kseedsy[n]-offset);
+            int y2 = MyMIN(m_height,	kseedsy[n]+offset);
+            int x1 = MyMAX(0,			kseedsx[n]-offset);
+            int x2 = MyMIN(m_width,	kseedsx[n]+offset);
+
+            for( int y = y1; y < y2; y++ )
+            {
+                for( int x = x1; x < x2; x++ )
+                {
+                    int i = y*m_width + x;
+                    _ASSERT( y < m_height && x < m_width && y >= 0 && x >= 0 );
+
+                    double l = m_lvec[i];
+                    double a = m_avec[i];
+                    double b = m_bvec[i];
+
+                    distlab[i] =	(l - kseedsl[n])*(l - kseedsl[n]) +
+                            (a - kseedsa[n])*(a - kseedsa[n]) +
+                            (b - kseedsb[n])*(b - kseedsb[n]);
+
+                    distxy[i] =		(x - kseedsx[n])*(x - kseedsx[n]) +
+                            (y - kseedsy[n])*(y - kseedsy[n]);
+
+                    //------------------------------------------------------------------------
+                    double dist = distlab[i]/maxlab[n] + distxy[i]*invxywt;//only varying m, prettier superpixels
+                    //double dist = distlab[i]/maxlab[n] + distxy[i]/maxxy[n];//varying both m and S
+                    //------------------------------------------------------------------------
+
+                    if( dist < distvec[i] )
+                    {
+                        distvec[i] = dist;
+                        klabels[i]  = n;
+                    }
+                }
+            }
+        }
+        //-----------------------------------------------------------------
+        // Assign the max color distance for a cluster
+        //-----------------------------------------------------------------
+        if(0 == numitr)
+        {
+            maxlab.assign(numk,1);
+            maxxy.assign(numk,1);
+        }
+        {for( int i = 0; i < sz; i++ )
+            {
+                if(maxlab[klabels[i]] < distlab[i]) maxlab[klabels[i]] = distlab[i];
+                if(maxxy[klabels[i]] < distxy[i]) maxxy[klabels[i]] = distxy[i];
+            }}
+        //-----------------------------------------------------------------
+        // Recalculate the centroid and store in the seed values
+        //-----------------------------------------------------------------
+        sigmal.assign(numk, 0);
+        sigmaa.assign(numk, 0);
+        sigmab.assign(numk, 0);
+        sigmax.assign(numk, 0);
+        sigmay.assign(numk, 0);
+        clustersize.assign(numk, 0);
+
+        for( int j = 0; j < sz; j++ )
+        {
+            int temp = klabels[j];
+            _ASSERT(klabels[j] >= 0);
+            sigmal[klabels[j]] += m_lvec[j];
+            sigmaa[klabels[j]] += m_avec[j];
+            sigmab[klabels[j]] += m_bvec[j];
+            sigmax[klabels[j]] += (j%m_width);
+            sigmay[klabels[j]] += (j/m_width);
+
+            clustersize[klabels[j]]++;
+        }
+
+        {for( int k = 0; k < numk; k++ )
+            {
+                //_ASSERT(clustersize[k] > 0);
+                if( clustersize[k] <= 0 ) clustersize[k] = 1;
+                inv[k] = 1.0/double(clustersize[k]);//computing inverse now to multiply, than divide later
+            }}
+
+        {for( int k = 0; k < numk; k++ )
+            {
+                kseedsl[k] = sigmal[k]*inv[k];
+                kseedsa[k] = sigmaa[k]*inv[k];
+                kseedsb[k] = sigmab[k]*inv[k];
+                kseedsx[k] = sigmax[k]*inv[k];
+                kseedsy[k] = sigmay[k]*inv[k];
+            }}
+    }
+}
+//=================================================================================
+/// DrawContoursAroundSegmentsTwoColors
+///
+/// Internal contour drawing option exists. One only needs to comment the if
+/// statement inside the loop that looks at neighbourhood.
+//=================================================================================
+void SLIC::DrawContoursAroundSegmentsTwoColors(
+        Mat                     imgMat,
+        const int*				labels,
+        const int&				width,
+        const int&				height)
+{
+    const int dx[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
+    const int dy[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
+
+    int sz = width*height;
+
+    vector<bool> istaken(sz, false);
+
+    vector<int> contourx(sz);
+    vector<int> contoury(sz);
+    int mainindex(0);
+    int cind(0);
+    for( int j = 0; j < height; j++ )
+    {
+        for( int k = 0; k < width; k++ )
+        {
+            int np(0);
+            for( int i = 0; i < 8; i++ )
+            {
+                int x = k + dx[i];
+                int y = j + dy[i];
+
+                if( (x >= 0 && x < width) && (y >= 0 && y < height) )
+                {
+                    int index = y*width + x;
+
+                    //if( false == istaken[index] )//comment this to obtain internal contours
+                    {
+                        if( labels[mainindex] != labels[index] ) np++;
+                    }
+                }
+            }
+            if( np > 1 )
+            {
+                contourx[cind] = k;
+                contoury[cind] = j;
+                istaken[mainindex] = true;
+                //img[mainindex] = color;
+                cind++;
+            }
+            mainindex++;
+        }
+    }
+
+    //边缘像素个数
+    int numboundpix = cind;//int(contourx.size());
+    for( int j = 0; j < numboundpix; j++ )
+    {
+        imgMat.at<Vec3b>(contoury[j], contourx[j])[2] = 255;   //Red
+        imgMat.at<Vec3b>(contoury[j], contourx[j])[1] = 255;   //Green
+        imgMat.at<Vec3b>(contoury[j], contourx[j])[0] = 255;   //Blue
+
+        //在白色边缘像素的邻域加上黑色框
+        for( int n = 0; n < 8; n++ )
+        {
+            int x = contourx[j] + dx[n];
+            int y = contoury[j] + dy[n];
+            //判断位置是否有效
+            if( (x >= 0 && x < width) && (y >= 0 && y < height) )
+            {
+                int ind = y*width + x;
+                if(!istaken[ind])
+                {
+                    imgMat.at<Vec3b>(y, x)[2] = 0;   //Red
+                    imgMat.at<Vec3b>(y, x)[1] = 0;   //Green
+                    imgMat.at<Vec3b>(y, x)[0] = 0;   //Blue
+                }
+            }
+        }
+    }
+}
