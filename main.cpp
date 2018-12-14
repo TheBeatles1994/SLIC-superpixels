@@ -14,12 +14,13 @@ void testSLIC(Mat imgMat);
 void testGLCM(Mat imgMat);
 void testEndian();
 void testBitOper();
+string doubleToString(double num);
 
 int main(int argc, char *argv[])
 {
 
     Mat imgMat = imread("imgs/FB043_293.jpg");
-    //Mat imgMat = imread("imgs/dog.jpg");
+    //Mat imgMat = imread("imgs/MJ.jpg");
 
     testSLIC(imgMat);
     //testGLCM(imgMat);
@@ -37,39 +38,45 @@ int main(int argc, char *argv[])
  */
 void testSLIC(Mat imgMat)
 {
-    int* labels = new int[imgMat.rows * imgMat.cols];
-    int numlabels(0);
-    SLIC slic;
-    slic.DoSuperpixelSegmentation_ForGivenNumberOfSuperpixels(imgMat, labels, numlabels, 30, 10);
-    slic.DrawContoursAroundSegments(imgMat, labels, imgMat.cols, imgMat.rows, 0);
-    if(labels) delete [] labels;
+    double lambda=1;
+#if 0
+    for(int i=0;i<10;i++)
+    {
+        cout<<"Processing..."<<endl;
+        SLIC slic;
+        slic.setLambda(lambda);
+        slic.runSLIC(imgMat, 25, 10,true);
 
-//    imshow("SLIC", imgMat);
-//    cvWaitKey();
-    imwrite("slic.jpg", imgMat);
+        Mat slicMat = slic.getSlicImg();
+        //imshow("SLIC", slicMat);
+        //cvWaitKey();
+        imwrite("slic_new_" + doubleToString(lambda) + ".jpg", slicMat);
+
+        lambda -= 0.001;
+    }
+#else
+    SLIC slic;
+    slic.setLambda(lambda);
+    slic.runSLIC(imgMat, 25, 10,true);
+
+    Mat slicMat = slic.getSlicImg();
+    //imshow("SLIC", slicMat);
+    //cvWaitKey();
+    imwrite("slic_new_" + doubleToString(lambda) + ".jpg", slicMat);
+#endif
     cout<<"Finished!"<<endl;
 }
 
 void testGLCM(Mat imgMat)
 {
     GLCM glcm;
-    TextureEValues EValues;
+    glcm.run(imgMat);
 
-    // 纹理特征值矩阵
-    // the Matrixs of Texture Features
-    Mat imgEnergy, imgContrast, imgHomogenity, imgEntropy;
-
-    Mat dstChannel;
-    glcm.getOneChannel(imgMat, dstChannel, CHANNEL_B);
-
-    // 灰度量化
-    // Magnitude Gray Image
-    glcm.GrayMagnitude(dstChannel, dstChannel, GRAY_8);
-
-    // 计算整幅图像的纹理特征值图像
-    // Calculate Texture Features of the whole Image
-    glcm.CalcuTextureImages(dstChannel, imgEnergy, imgContrast, imgHomogenity, imgEntropy, 5, GRAY_8, true);
-    glcm.CalcuTextureEValue(dstChannel, EValues, 5, GRAY_8);
+    TextureEValues EValues = glcm.getEValues();
+    Mat imgEnergy = glcm.getEnergy();
+    Mat imgContrast = glcm.getContrast();
+    Mat imgHomogenity = glcm.getHomogenity();
+    Mat imgEntropy = glcm.getEntropy();
 
     cout<<"Image's Texture EValues:"<<endl;
     cout<<"    Contrast: "<<EValues.contrast<<endl;
@@ -81,12 +88,13 @@ void testGLCM(Mat imgMat)
     imshow("Contrast", imgContrast);
     imshow("Homogenity", imgHomogenity);
     imshow("Entropy", imgEntropy);
-#else
+    cvWaitKey(0);
+#endif
+#if 0
     imwrite("Energy1.jpg", imgEnergy);
     imwrite("Contrast1.jpg", imgContrast);
     imwrite("Homogenity1.jpg", imgHomogenity);
     imwrite("Entropy1.jpg", imgEntropy);
-    cvWaitKey(0);
 #endif
 }
 
@@ -121,4 +129,12 @@ void testBitOper()
     a = i;
     b = i/256;
     cout <<(int)a<<" "<<(int)b<<endl;
+}
+
+string doubleToString(double num)
+{
+    char str[256];
+    sprintf(str, "%lf", num);
+    string result = str;
+    return result;
 }

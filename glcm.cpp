@@ -44,6 +44,21 @@
  *   void
 =====================================================================
 */
+void GLCM::run(Mat imgMat)
+{
+    // 取其中一个通道
+    getOneChannel(imgMat, greyMagnitudeMat, CHANNEL_B);
+
+    // 灰度量化
+    // Magnitude Gray Image
+    GrayMagnitude(greyMagnitudeMat, greyMagnitudeMat, GRAY_8);
+
+    // 计算整幅图像的纹理特征值图像
+    // Calculate Texture Features of the whole Image
+    CalcuTextureImages(greyMagnitudeMat, imgEnergy, imgContrast, imgHomogenity, imgEntropy, 5, GRAY_8, true);
+    //CalcuTextureEValue(greyMagnitudeMat, EValues, 5, GRAY_8);
+}
+
 void GLCM::getOneChannel(Mat src, Mat& dstChannel, RGBChannel channel)
 {
     // 若输入图像已经是灰度图，则直接输出

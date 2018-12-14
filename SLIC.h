@@ -29,15 +29,17 @@ class SLIC
 public:
     SLIC();
     virtual ~SLIC();
+    //SLIC算法启动
+    void runSLIC(Mat imgMat, int K, double compactness,  bool newALGO = false);
     //============================================================================
     // Superpixel segmentation for a given step size (superpixel size ~= step*step)
     //============================================================================
-    void DoSuperpixelSegmentation_ForGivenSuperpixelSize(
-            Mat                         imgMat,
+    void DoSuperpixelSegmentation_ForGivenSuperpixelSize(Mat                         imgMat,
             int*&						klabels,
             int&						numlabels,
             const int&					superpixelsize,
-            const double&               compactness);
+            const double&               compactness,
+            bool                        newALGO);
     //============================================================================
     // Superpixel segmentation for a given number of superpixels
     //============================================================================
@@ -46,7 +48,8 @@ public:
             int*&						klabels,
             int&						numlabels,
             const int&					K,//required number of superpixels
-            const double&               compactness);//10-20 is a good value for CIELAB space
+            const double&               compactness,//10-20 is a good value for CIELAB space
+            bool                        newALGO);
     //============================================================================
     // Save superpixel labels in a text file in raster scan order
     // 未适应OpenCV
@@ -78,12 +81,24 @@ public:
             const int&				width,
             const int&				height,
             const unsigned int&				color );
-
+    inline Mat getSlicImg(){return slicImg;}
+    inline void setLambda(double lambda){this->lambda = lambda;}
 private:
     //============================================================================
     // The main SLIC algorithm for generating superpixels
     //============================================================================
     void PerformSuperpixelSLIC(
+            vector<double>&				kseedsl,
+            vector<double>&				kseedsa,
+            vector<double>&				kseedsb,
+            vector<double>&				kseedsx,
+            vector<double>&				kseedsy,
+            int*&						klabels,
+            const int&					STEP,
+            const vector<double>&		edgemag,
+            const double&				m = 10.0);
+    void newPerformSuperpixelSLIC(
+            Mat                         imgMat,
             vector<double>&				kseedsl,
             vector<double>&				kseedsa,
             vector<double>&				kseedsb,
@@ -184,7 +199,14 @@ private:
             int*&						nlabels,//input labels that need to be corrected to remove stray labels
             int&						numlabels,//the number of labels changes in the end if segments are removed
             const int&					K); //the number of superpixels desired by the user
-
+    void newEnforceLabelConnectivity(
+            Mat                         imgMat,
+            const int*					labels,
+            const int					width,
+            const int					height,
+            int*&						nlabels,//input labels that need to be corrected to remove stray labels
+            int&						numlabels,//the number of labels changes in the end if segments are removed
+            const int&					K); //the number of superpixels desired by the user
 private:
     int										m_width;
     int										m_height;
@@ -197,6 +219,9 @@ private:
     double**								m_lvecvec;
     double**								m_avecvec;
     double**								m_bvecvec;
+
+    Mat slicImg;    //原始方法的结果
+    double lambda = 0.8;  //lambda
 };
 
 #endif // !defined(_SLIC_H_INCLUDED_)

@@ -74,6 +74,8 @@ struct TextureEValues
 class GLCM
 {
 public:
+    // GLCM算法启动
+    void run(Mat imgMat);
     // 从彩色通道中提取一个通道
     // Extract a channel from RGB Image
     void getOneChannel(Mat src, Mat& dstChannel, RGBChannel channel = CHANNEL_R);
@@ -102,6 +104,20 @@ public:
     // 计算整幅图像的纹理特征，计算每一个像素的纹理特征
     void CalcuTextureImages(Mat src, Mat& imgEnergy, Mat& imgContrast, Mat& imgHomogenity, Mat& imgEntropy,
                             int size = 5, GrayLevel level = GRAY_8, bool ToAdjustImg = false);
+    inline Mat getEnergy(){return imgEnergy;}
+    inline Mat getContrast(){return imgContrast;}
+    inline Mat getHomogenity(){return imgHomogenity;}
+    inline Mat getEntropy(){return imgEntropy;}
+    inline TextureEValues getEValues(){return EValues;}
+private:
+    // 纹理特征值矩阵
+    // the Matrixs of Texture Features
+    Mat imgEnergy;      //能量
+    Mat imgContrast;    //对比度
+    Mat imgHomogenity;  //相关性
+    Mat imgEntropy;     //熵
+    Mat greyMagnitudeMat;   //灰度量化矩阵
+    TextureEValues EValues; //整幅图像纹理特征信息
 };
 
 #endif // GLCM_H
